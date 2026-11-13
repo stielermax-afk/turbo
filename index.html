@@ -39,9 +39,9 @@
     gap: 8px;
   }
   header { text-align: center; }
-  .marke { font-size: 13px; font-weight: 800; letter-spacing: 0.42em; margin-right: -0.42em; color: var(--leise); }
+  .marke { font-size: 13px; font-weight: 800; letter-spacing: 0.42em; margin-right: -0.42em; color: var(--leise); padding: 6px 14px; }
   #status {
-    margin-top: 10px; min-height: 1.3em;
+    margin-top: 4px; min-height: 1.3em;
     font-size: 19px; font-weight: 700; letter-spacing: 0.02em; color: var(--akzent);
   }
   #lader { width: min(90vw, 54vh); height: auto; flex: 0 1 auto; display: block; }
@@ -83,12 +83,36 @@
   #los:active { background: #ff8242; }
   #los:disabled { opacity: 0.5; }
   #hinweis { color: #ffb38a !important; min-height: 1.4em; }
+
+  /* Klang-Labor */
+  #labor {
+    display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 4;
+    max-height: 66vh; max-height: 66dvh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    touch-action: pan-y; overscroll-behavior: contain;
+    background: #10141a; border-top: 1px solid var(--linie); border-radius: 18px 18px 0 0;
+    padding: 14px 16px max(16px, env(safe-area-inset-bottom));
+    box-shadow: 0 -18px 40px rgba(0, 0, 0, 0.55);
+  }
+  #labor.offen { display: block; }
+  #labor h2 { margin: 0 0 10px; font-size: 13px; font-weight: 800; letter-spacing: 0.3em; color: var(--leise); text-align: center; }
+  #labor .reihe { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; margin-bottom: 10px; }
+  #labor button { min-height: 44px; padding: 0 8px; font-size: 14px; border-radius: 12px; }
+  #labor button.haupt { background: #ff6a1f; color: #160a02; border-color: transparent; }
+  #labor label { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 0 10px; font-size: 14px; margin-top: 8px; }
+  #labor label b { font-variant-numeric: tabular-nums; }
+  #labor input[type=range] { grid-column: 1 / -1; width: 100%; height: 34px; accent-color: #ff6a1f; }
+  #werte {
+    width: 100%; margin: 12px 0 10px; padding: 8px; min-height: 64px; resize: none;
+    background: #0a0c0f; color: var(--leise); border: 1px solid var(--linie); border-radius: 10px;
+    font: 12px/1.35 ui-monospace, Menlo, Consolas, monospace;
+    -webkit-user-select: text; user-select: text;
+  }
 </style>
 </head>
 <body>
 <div id="app">
   <header>
-    <div class="marke">TURBO</div>
+    <div class="marke" id="marke">TURBO</div>
     <div id="status">Bereit</div>
   </header>
 
@@ -131,13 +155,29 @@
 
   <footer>
     <label id="sim"><span id="simText">Kippwinkel (Test)</span>
-      <input id="simRegler" type="range" min="0" max="90" step="1" value="0">
+      <input id="simRegler" type="range" min="0" max="180" step="1" value="0">
     </label>
     <button id="ausrichten" type="button">Neu ausrichten</button>
   </footer>
 </div>
 
 <div id="blitz"></div>
+
+<div id="labor">
+  <h2>KLANG-LABOR</h2>
+  <div class="reihe">
+    <button type="button" class="haupt" id="testBlowoff">Blow-off testen</button>
+    <button type="button" class="haupt" id="testHoch">Hochdrehen testen</button>
+  </div>
+  <div class="reihe" id="vorgaben"></div>
+  <div id="regler"></div>
+  <textarea id="werte" readonly></textarea>
+  <div class="reihe">
+    <button type="button" id="kopieren">Werte kopieren</button>
+    <button type="button" id="zurueck">Zurücksetzen</button>
+    <button type="button" id="laborZu">Schließen</button>
+  </div>
+</div>
 
 <div id="start">
   <h1>TURBO</h1>
@@ -151,47 +191,82 @@
   'use strict';
 
   // ---------------------------------------------------------------------------
-  // Stellschrauben – hier lässt sich Gefühl und Klang anpassen
+  // Feste Stellschrauben
   // ---------------------------------------------------------------------------
   const K = {
-    WINKEL_AN: 25,          // ° ab hier gilt das Handy als „am Trinken“
-    WINKEL_AUS: 12,         // ° darunter ist immer abgesetzt
-    ABSETZ_ANTEIL: 0.45,    // abgesetzt, sobald der Winkel unter diesen Anteil des größten Kippwinkels fällt
-    AN_VERZOEGERUNG_MS: 150,
-    WINKEL_VOLL: 70,        // ° ab hier lädt der Turbo mit vollem Tempo
+    VOLL_ABSTAND: 40,       // ° über dem Einsatzwinkel lädt der Turbo mit vollem Tempo
+    AUS_ABSTAND: 8,         // ° unter dem Einsatzwinkel ist immer abgesetzt
+    SCHARF_ABSTAND: 15,     // ° unter dem Einsatzwinkel wird nach einem Blow-off wieder scharf geschaltet
+    AN_VERZOEGERUNG_MS: 80,
     HOCHLAUF_S: 6,          // Sekunden bis Volllast bei starkem Kippen
     MIN_DRUCK: 0.05,        // darunter gibt es beim Absetzen keinen Ton
     MAX_BAR: 2.0,           // Anzeige bei Volllast
-    GLAETTUNG_S: 0.12,      // Tiefpass für den Sensor
+    GLAETTUNG_S: 0.07,      // Tiefpass für den Sensor
     KALIBRIER_MS: 400,
 
-    PFEIF_HZ_MIN: 320,      // Tonhöhe des Pfeifens im Stand …
-    PFEIF_HZ_MAX: 4600,     // … und bei Volllast
+    PFEIF_HZ_MIN: 320,      // Tonhöhe des Pfeifens im Stand (Volllast: Regler „Pfeif-Tonhöhe“)
     PFEIF_LAUT: 0.20,
-    RAUSCH_LAUT: 0.30,
-
-    BLOWOFF_MIN_S: 0.3,     // Länge des Abblasens bei wenig …
-    BLOWOFF_MAX_S: 1.5,     // … und bei vollem Ladedruck
-    FLATTER_START_HZ: 16,   // „tu-tu-tu“ pro Sekunde am Anfang …
-    FLATTER_ENDE_HZ: 7,     // … und am Ende
-    FLATTER_TON_HZ: 1150,   // Klangfarbe des „tu“ am Anfang …
-    FLATTER_TON_ENDE_HZ: 720, // … und am Ende
-    BLOWOFF_LAUT: 0.95,
+    RAUSCH_LAUT: 0.34,
+    KOERPER_LAUT: 0.9,
+    BLOWOFF_MIN_S: 0.3,     // Länge des Abblasens bei wenig Ladedruck (voll: Regler „Länge“)
+    BLOWOFF_LAUT: 1.0,
 
     RAD_MAX: 1150,          // °/s Drehung der Anzeige bei Volllast
   };
+
+  // ---------------------------------------------------------------------------
+  // Regelbare Werte (Klang-Labor). STANDARD = Auslieferungszustand.
+  // ---------------------------------------------------------------------------
+  const STANDARD = {
+    einsatz: 90,   // ° ab hier baut sich Ladedruck auf
+    abfall: 15,    // ° Rückweg vom größten Kippwinkel, der das Blow-off auslöst
+    rauh: 0.6,     // Verzerrung 0…1
+    koerper: 0.6,  // tiefer Anteil 0…1
+    flatter: 1,    // 1 = „tu-tu-tu“, 0 = durchgehendes Zischen
+    tempo: 18,     // Stöße pro Sekunde am Anfang (am Ende halb so viele)
+    ton: 1,        // Tonhöhe der Stöße (Faktor)
+    laenge: 1.5,   // Sekunden bei vollem Ladedruck
+    pfeif: 4600,   // Hz Pfeifen bei Volllast
+    schweb: 0.2,   // raue Schwebung beim Hochdrehen
+    hall: 0.12,    // Raumanteil
+  };
+  const REGLER = [
+    ['einsatz', 'Einsatzwinkel', 20, 150, 1, '°'],
+    ['abfall', 'Absetz-Abfall', 5, 40, 1, '°'],
+    ['rauh', 'Rauheit', 0, 1, 0.05, ''],
+    ['koerper', 'Körper (tief)', 0, 1, 0.05, ''],
+    ['flatter', 'Flatter-Anteil', 0, 1, 0.05, ''],
+    ['tempo', 'Flatter-Tempo', 8, 30, 1, '/s'],
+    ['ton', 'Flatter-Tonhöhe', 0.5, 2, 0.05, '×'],
+    ['laenge', 'Länge', 0.5, 2.5, 0.1, ' s'],
+    ['pfeif', 'Pfeif-Tonhöhe', 2000, 7000, 100, ' Hz'],
+    ['schweb', 'Schwebung', 0, 0.5, 0.02, ''],
+    ['hall', 'Hall', 0, 0.4, 0.02, ''],
+  ];
+  const VORGABEN = {
+    'Flattern': {},
+    'Zischen': { flatter: 0.15, laenge: 0.9, tempo: 22, ton: 1.3, koerper: 0.35 },
+    'Grob & tief': { rauh: 0.95, koerper: 0.9, ton: 0.75, tempo: 15, laenge: 1.8, schweb: 0.3 },
+  };
+  const P = Object.assign({}, STANDARD);
+  try {
+    const gespeichert = JSON.parse(localStorage.getItem('turbo.klang.v1') || '{}');
+    for (const k of Object.keys(STANDARD)) if (typeof gespeichert[k] === 'number' && isFinite(gespeichert[k])) P[k] = gespeichert[k];
+  } catch (e) {}
 
   const $ = (id) => document.getElementById(id);
   const lerp = (a, b, t) => a + (b - a) * t;
   const klemme = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
   const bar = (druck) => (druck * K.MAX_BAR).toFixed(2).replace('.', ',');
-  const SIM_ERZWUNGEN = new URLSearchParams(location.search).has('sim');
+  const PARAMETER = new URLSearchParams(location.search);
+  const SIM_ERZWUNGEN = PARAMETER.has('sim');
   const NS = 'http://www.w3.org/2000/svg';
 
   const z = {
     laeuft: false, sim: false,
     zustand: 'RUHE',        // RUHE | TRINKEN | ABSETZEN
-    winkel: 0, spitzenWinkel: 0, anSeit: 0, absetzenBis: 0,
+    scharf: true,           // nach einem Blow-off erst wieder laden, wenn das Handy unten war
+    winkel: 0, spitzenWinkel: 0, anSeit: 0, absetzenBis: 0, testBis: 0,
     druck: 0,               // Ladedruck 0…1
     rad: 0, radTempo: 0, blitz: 0,
     best: 0, letztePulse: 0, letzteStaerke: 0,
@@ -264,7 +339,8 @@
 
   function neuAusrichten() {
     ref = null; kalibStart = 0;
-    z.zustand = 'RUHE'; z.druck = 0; z.anSeit = 0; z.winkel = 0;
+    z.zustand = 'RUHE'; z.druck = 0; z.anSeit = 0; z.winkel = 0; z.scharf = true; z.testBis = 0;
+    if (klang) klang.frei();
     if (z.sim) $('simRegler').value = 0;
   }
 
@@ -275,10 +351,222 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Ton: alles synthetisch (Web Audio), keine Audiodateien
+  // Ton: alles synthetisch (Web Audio), keine Audiodateien.
+  // baueKlang() funktioniert auch mit einem OfflineAudioContext (zum Prüfen).
   // ---------------------------------------------------------------------------
-  let ctx = null, osz1, osz2, sinus, pfeifFilter, pfeifGain, rauschFilter, rauschGain;
-  let zischGain, flatterGain, flatterFilter;
+  const pfeifHzBei = (d) => K.PFEIF_HZ_MIN * Math.pow(P.pfeif / K.PFEIF_HZ_MIN, Math.pow(d, 0.75));
+
+  function baueKlang(ctx) {
+    const rate = ctx.sampleRate;
+    const gain = (wert) => { const n = ctx.createGain(); n.gain.value = wert; return n; };
+    const filter = (typ, hz, q) => { const n = ctx.createBiquadFilter(); n.type = typ; n.frequency.value = hz; if (q != null) n.Q.value = q; return n; };
+    const kette = (...knoten) => { for (let i = 0; i < knoten.length - 1; i++) knoten[i].connect(knoten[i + 1]); return knoten[knoten.length - 1]; };
+
+    // Verzerrer: weiche Sättigung, 4-fach überabgetastet (sonst klingt es digital)
+    const kurve = new Float32Array(2048);
+    for (let i = 0; i < kurve.length; i++) kurve[i] = Math.tanh(4 * ((i / (kurve.length - 1)) * 2 - 1));
+    const verzerrer = () => { const n = ctx.createWaveShaper(); n.curve = kurve; n.oversample = '4x'; return n; };
+
+    // Rauschquellen: weiß (hell) und rosa (dunkler, mit Körper)
+    const laenge = Math.floor(rate * 2);
+    const weissPuffer = ctx.createBuffer(1, laenge, rate), rosaPuffer = ctx.createBuffer(1, laenge, rate);
+    const wd = weissPuffer.getChannelData(0), rd = rosaPuffer.getChannelData(0);
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    for (let i = 0; i < laenge; i++) {
+      const w = Math.random() * 2 - 1;
+      wd[i] = w;
+      b0 = 0.99886 * b0 + w * 0.0555179; b1 = 0.99332 * b1 + w * 0.0750759; b2 = 0.969 * b2 + w * 0.153852;
+      b3 = 0.8665 * b3 + w * 0.3104856; b4 = 0.55 * b4 + w * 0.5329522; b5 = -0.7616 * b5 - w * 0.016898;
+      rd[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.16;
+      b6 = w * 0.115926;
+    }
+    const quelle = (puffer) => { const n = ctx.createBufferSource(); n.buffer = puffer; n.loop = true; n.start(); return n; };
+    const weiss = quelle(weissPuffer), rosa = quelle(rosaPuffer);
+
+    // Ausgang: Summe trocken + kurzer Hall, dahinter ein Begrenzer
+    const summe = gain(1);
+    const begrenzer = ctx.createDynamicsCompressor();
+    begrenzer.threshold.value = -8; begrenzer.knee.value = 6; begrenzer.ratio.value = 12;
+    begrenzer.attack.value = 0.003; begrenzer.release.value = 0.12;
+    const haupt = gain(0.9);
+    const hallPuffer = ctx.createBuffer(1, Math.floor(rate * 0.28), rate);
+    const hd = hallPuffer.getChannelData(0);
+    for (let i = 0; i < hd.length; i++) hd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / hd.length, 3);
+    const hall = ctx.createConvolver(); hall.buffer = hallPuffer;
+    const nass = gain(0);
+    kette(summe, begrenzer, haupt, ctx.destination);
+    kette(summe, hall, nass, begrenzer);
+
+    // --- Hochdrehen -----------------------------------------------------------
+    const osz1 = ctx.createOscillator(); osz1.type = 'sawtooth';
+    const osz2 = ctx.createOscillator(); osz2.type = 'sawtooth';
+    const sinus = ctx.createOscillator(); sinus.type = 'sine';
+    const pfeifFilter = filter('bandpass', K.PFEIF_HZ_MIN, 5);
+    const pfeifGain = gain(0);
+    osz1.connect(pfeifFilter); osz2.connect(pfeifFilter); pfeifFilter.connect(pfeifGain);
+    kette(sinus, gain(0.6), pfeifGain);
+    const rauschFilter = filter('bandpass', 700, 0.8);
+    const rauschGain = gain(0);
+    kette(weiss, rauschFilter, rauschGain);
+    const koerperGain = gain(0);
+    kette(rosa, filter('bandpass', 430, 0.7), koerperGain);
+
+    const schweb = gain(1);      // raue Schwebung (Lautstärke flattert schnell)
+    const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 35;
+    const lfoTiefe = gain(0);
+    kette(lfo, lfoTiefe); lfoTiefe.connect(schweb.gain);
+    const hacker = gain(1);      // zerhackt das auslaufende Pfeifen beim Abblasen
+    const vorS = gain(1), nachS = gain(0.4);
+    pfeifGain.connect(schweb); rauschGain.connect(schweb); koerperGain.connect(schweb);
+    kette(schweb, hacker, vorS, verzerrer(), nachS, summe);
+    const stimmen = [osz1, osz2, sinus];
+    stimmen.forEach((o) => { o.frequency.value = K.PFEIF_HZ_MIN; o.start(); });
+    lfo.start();
+
+    // --- Abblasen -------------------------------------------------------------
+    const blasSumme = gain(1);
+    const vorB = gain(1), nachB = gain(0.8);
+    const blasHuelle = gain(1);  // Gesamtlautstärke des Abblasens, klingt über die Dauer ab
+    kette(blasSumme, vorB, verzerrer(), nachB, blasHuelle, summe);
+    // „Psch“: breiter Luftstoß, Filter fällt von hell nach dunkel
+    const pschFilter = filter('bandpass', 5200, 0.7);
+    const pschGain = gain(0);
+    kette(weiss, filter('highpass', 900), pschFilter, pschGain, blasSumme);
+    // „tu“: Luftstoß mit fallender Tonhöhe + heller Anschlag
+    const stossFilter = filter('bandpass', 2200, 3);
+    const stossGain = gain(0);
+    kette(rosa, stossFilter, gain(5), stossGain, blasSumme);
+    kette(weiss, filter('bandpass', 3200, 1.2), gain(0.3), stossGain);
+    // hohler Körper jedes Stoßes
+    const hohlOsz = ctx.createOscillator(); hohlOsz.type = 'triangle'; hohlOsz.frequency.value = 400; hohlOsz.start();
+    const hohlGain = gain(0);
+    kette(hohlOsz, hohlGain, blasSumme);
+    // Grundzischen zwischen den Stößen
+    const bettGain = gain(0);
+    kette(rosa, filter('bandpass', 1500, 0.5), gain(3), bettGain, blasSumme);
+
+    let jitter = 0;
+
+    function anwenden() { // regelbare Werte in die festen Knoten übernehmen
+      const t = ctx.currentTime;
+      vorS.gain.setTargetAtTime(lerp(0.25, 2.5, P.rauh), t, 0.02);
+      nachS.gain.setTargetAtTime(0.36 + 0.4 * Math.max(0, 1 - P.rauh / 0.6), t, 0.02);
+      vorB.gain.setTargetAtTime(lerp(0.3, 1.5, P.rauh), t, 0.02);
+      nachB.gain.setTargetAtTime(lerp(0.95, 0.78, P.rauh), t, 0.02);
+      nass.gain.setTargetAtTime(P.hall * 3, t, 0.02);
+    }
+
+    function nachfuehren(d) { // Hochdrehen an den Ladedruck d (0…1) anpassen
+      const t = ctx.currentTime;
+      jitter = klemme(jitter * 0.94 + (Math.random() - 0.5) * 0.004, -0.012, 0.012);
+      const f = pfeifHzBei(d) * (1 + jitter);
+      osz1.frequency.setTargetAtTime(f, t, 0.05);
+      osz2.frequency.setTargetAtTime(f * 1.006, t, 0.05);
+      sinus.frequency.setTargetAtTime(f, t, 0.05);
+      pfeifFilter.frequency.setTargetAtTime(f, t, 0.05);
+      pfeifGain.gain.setTargetAtTime(Math.pow(d, 1.2) * K.PFEIF_LAUT, t, 0.05);
+      rauschFilter.frequency.setTargetAtTime(700 + d * 4300, t, 0.05);
+      rauschGain.gain.setTargetAtTime(d * K.RAUSCH_LAUT, t, 0.05);
+      koerperGain.gain.setTargetAtTime(d * K.KOERPER_LAUT * P.koerper, t, 0.05);
+      lfo.frequency.setTargetAtTime(35 + 35 * d, t, 0.05);
+      lfoTiefe.gain.setTargetAtTime(P.schweb * d, t, 0.05);
+    }
+
+    // Plant das Abblasen ab Zeitpunkt t0 ein; gibt Dauer und die einzelnen Stöße zurück
+    function blowoff(staerke, t0) {
+      const dauer = lerp(K.BLOWOFF_MIN_S, P.laenge, staerke);
+      const laut = K.BLOWOFF_LAUT * (0.35 + 0.65 * staerke);
+      const pschKurz = 0.08 + 0.08 * staerke;
+      const pschDauer = lerp(dauer * 0.85, pschKurz, P.flatter);
+      const pulse = [];
+      if (staerke >= 0.12 && P.flatter > 0.02) {
+        let tt = pschKurz * 0.7;
+        while (tt < dauer - 0.05) {
+          const p = tt / dauer;
+          const periode = (1 / lerp(P.tempo, P.tempo * 0.5, p)) * (1 + (Math.random() - 0.5) * 0.2);
+          const a = laut * (0.2 + 0.8 * Math.pow(1 - p, 1.2)) * (1 + (Math.random() - 0.5) * 0.3);
+          pulse.push({ t: tt, periode, p, a });
+          tt += periode;
+        }
+      }
+
+      // Pfeifen: läuft in der Tonhöhe aus statt abzubrechen
+      const f0 = pfeifHzBei(staerke), f1 = Math.max(180, f0 * 0.28);
+      [[osz1, 1], [osz2, 1.006], [sinus, 1], [pfeifFilter, 1]].forEach(([n, faktor]) => {
+        n.frequency.cancelScheduledValues(t0);
+        n.frequency.setValueAtTime(f0 * faktor, t0);
+        n.frequency.exponentialRampToValueAtTime(f1 * faktor, t0 + dauer);
+      });
+      const g0 = Math.pow(staerke, 1.2) * K.PFEIF_LAUT;
+      pfeifGain.gain.cancelScheduledValues(t0);
+      pfeifGain.gain.setValueAtTime(g0, t0);
+      pfeifGain.gain.linearRampToValueAtTime(g0 * 0.6, t0 + 0.03);
+      pfeifGain.gain.linearRampToValueAtTime(0.0001, t0 + dauer);
+      [rauschGain, koerperGain, lfoTiefe].forEach((n) => { n.gain.cancelScheduledValues(t0); n.gain.setTargetAtTime(0, t0, 0.03); });
+
+      // „Psch“
+      pschFilter.frequency.cancelScheduledValues(t0);
+      pschFilter.frequency.setValueAtTime(5200, t0);
+      pschFilter.frequency.exponentialRampToValueAtTime(1400, t0 + pschDauer);
+      pschGain.gain.cancelScheduledValues(t0);
+      pschGain.gain.setValueAtTime(0.0001, t0);
+      pschGain.gain.linearRampToValueAtTime(laut * 0.9, t0 + 0.008);
+      pschGain.gain.exponentialRampToValueAtTime(0.0001, t0 + pschDauer + 0.08);
+
+      // Grundzischen
+      bettGain.gain.cancelScheduledValues(t0);
+      bettGain.gain.setValueAtTime(0.0001, t0);
+      bettGain.gain.linearRampToValueAtTime(laut * (0.16 + 0.45 * (1 - P.flatter)), t0 + 0.02);
+      bettGain.gain.exponentialRampToValueAtTime(0.0001, t0 + dauer);
+
+      // Gesamthülle: nach der Verzerrung, damit die Stöße hörbar leiser werden
+      blasHuelle.gain.cancelScheduledValues(t0);
+      blasHuelle.gain.setValueAtTime(0.45 + 0.55 * staerke, t0);
+      blasHuelle.gain.exponentialRampToValueAtTime((0.45 + 0.55 * staerke) * 0.22, t0 + dauer);
+
+      // Stöße: jeder klingt über fast die ganze Periode aus (kein kurzes Ticken)
+      [stossGain.gain, hohlGain.gain, hacker.gain, stossFilter.frequency, hohlOsz.frequency].forEach((par) => par.cancelScheduledValues(t0));
+      stossGain.gain.setValueAtTime(0.0001, t0);
+      hohlGain.gain.setValueAtTime(0.0001, t0);
+      hacker.gain.setValueAtTime(1, t0);
+      const hackBoden = lerp(1, 0.12, P.flatter);
+      let letztesEnde = t0;
+      for (const q of pulse) {
+        const t = t0 + q.t, tiefer = lerp(1, 0.78, q.p) * P.ton;
+        const boden = Math.max(0.0001, q.a * (0.07 + (1 - P.flatter) * 0.75));
+        const hohl = q.a * P.koerper * 0.6, hohlBoden = hohl * 0.05 + 0.0001;
+        letztesEnde = t + q.periode * 0.85;
+        stossFilter.frequency.setValueAtTime(2200 * tiefer, t);
+        stossFilter.frequency.exponentialRampToValueAtTime(700 * tiefer, t + q.periode * 0.6);
+        stossGain.gain.setValueAtTime(boden, t);
+        stossGain.gain.linearRampToValueAtTime(q.a, t + 0.004);
+        stossGain.gain.exponentialRampToValueAtTime(boden, letztesEnde);
+        hohlOsz.frequency.setValueAtTime(420 * tiefer, t);
+        hohlOsz.frequency.exponentialRampToValueAtTime(260 * tiefer, t + q.periode * 0.5);
+        hohlGain.gain.setValueAtTime(hohlBoden, t);
+        hohlGain.gain.linearRampToValueAtTime(hohl, t + 0.006);
+        hohlGain.gain.exponentialRampToValueAtTime(hohlBoden, letztesEnde);
+        hacker.gain.setValueAtTime(hackBoden, t);
+        hacker.gain.linearRampToValueAtTime(1, t + 0.004);
+        hacker.gain.exponentialRampToValueAtTime(hackBoden, t + q.periode * 0.7);
+      }
+      const ende = Math.max(letztesEnde, t0 + dauer) + 0.07; // erst nach dem letzten Stoß ausblenden
+      stossGain.gain.exponentialRampToValueAtTime(0.0001, ende);
+      hohlGain.gain.exponentialRampToValueAtTime(0.0001, ende);
+      return { dauer: ende - t0, pulse };
+    }
+
+    function frei() { // nach dem Abblasen: geplante Verläufe räumen, Hochdrehen darf wieder regeln
+      const t = ctx.currentTime;
+      [osz1.frequency, osz2.frequency, sinus.frequency, pfeifFilter.frequency, pfeifGain.gain, hacker.gain].forEach((par) => par.cancelScheduledValues(t));
+      hacker.gain.setValueAtTime(1, t);
+    }
+
+    anwenden();
+    return { ctx, nachfuehren, blowoff, frei, anwenden, pfeifHz: () => osz1.frequency.value };
+  }
+
+  let ctx = null, klang = null;
 
   function stilleUrl() { // 1 s Stille als WAV – hält auf älteren iPhones den Ton trotz Stummschalter an
     const rate = 8000, n = rate, puffer = new ArrayBuffer(44 + n), v = new DataView(puffer);
@@ -302,119 +590,20 @@
         a.loop = true; a.setAttribute('playsinline', ''); a.play().catch(() => {});
       }
     } catch (e) {}
-
     ctx = new AC();
-    const haupt = ctx.createGain(); haupt.gain.value = 0.9;
-    const komp = ctx.createDynamicsCompressor();
-    haupt.connect(komp); komp.connect(ctx.destination);
-
-    // Rauschquelle (2 s, Schleife) für Luftstrom und Abblasen
-    const laenge = Math.floor(ctx.sampleRate * 2);
-    const puffer = ctx.createBuffer(1, laenge, ctx.sampleRate);
-    const daten = puffer.getChannelData(0);
-    for (let i = 0; i < laenge; i++) daten[i] = Math.random() * 2 - 1;
-    const rauschen = ctx.createBufferSource();
-    rauschen.buffer = puffer; rauschen.loop = true; rauschen.start();
-
-    // Pfeifen: zwei verstimmte Sägezähne durch einen mitlaufenden Bandpass + reiner Sinus
-    pfeifFilter = ctx.createBiquadFilter(); pfeifFilter.type = 'bandpass'; pfeifFilter.Q.value = 5;
-    pfeifGain = ctx.createGain(); pfeifGain.gain.value = 0;
-    osz1 = ctx.createOscillator(); osz1.type = 'sawtooth';
-    osz2 = ctx.createOscillator(); osz2.type = 'sawtooth';
-    sinus = ctx.createOscillator(); sinus.type = 'sine';
-    const sinusGain = ctx.createGain(); sinusGain.gain.value = 0.6;
-    osz1.connect(pfeifFilter); osz2.connect(pfeifFilter);
-    sinus.connect(sinusGain); sinusGain.connect(pfeifGain);
-    pfeifFilter.connect(pfeifGain); pfeifGain.connect(haupt);
-    [osz1, osz2, sinus].forEach((o) => { o.frequency.value = K.PFEIF_HZ_MIN; o.start(); });
-
-    // Luftstrom
-    rauschFilter = ctx.createBiquadFilter(); rauschFilter.type = 'bandpass'; rauschFilter.Q.value = 0.8;
-    rauschGain = ctx.createGain(); rauschGain.gain.value = 0;
-    rauschen.connect(rauschFilter); rauschFilter.connect(rauschGain); rauschGain.connect(haupt);
-
-    // Abblasen, Teil 1: das „sch“
-    const zischFilter = ctx.createBiquadFilter(); zischFilter.type = 'highpass'; zischFilter.frequency.value = 2400;
-    zischGain = ctx.createGain(); zischGain.gain.value = 0;
-    rauschen.connect(zischFilter); zischFilter.connect(zischGain); zischGain.connect(haupt);
-
-    // Abblasen, Teil 2: das „tu-tu-tu“ – Rauschen durch zwei Bandpässe, in Impulse zerhackt
-    flatterFilter = ctx.createBiquadFilter(); flatterFilter.type = 'bandpass'; flatterFilter.Q.value = 2.6;
-    flatterFilter.frequency.value = K.FLATTER_TON_HZ;
-    const hell = ctx.createBiquadFilter(); hell.type = 'bandpass'; hell.Q.value = 1.4; hell.frequency.value = 3000;
-    const hellGain = ctx.createGain(); hellGain.gain.value = 0.45;
-    const tuGain = ctx.createGain(); tuGain.gain.value = 2.2;
-    flatterGain = ctx.createGain(); flatterGain.gain.value = 0;
-    rauschen.connect(flatterFilter); flatterFilter.connect(tuGain); tuGain.connect(flatterGain);
-    rauschen.connect(hell); hell.connect(hellGain); hellGain.connect(flatterGain);
-    flatterGain.connect(haupt);
-
+    klang = baueKlang(ctx);
     ctx.resume();
   }
 
-  function tonNachfuehren() {
-    if (!ctx) return;
-    const t = ctx.currentTime;
-    const ab = z.zustand === 'ABSETZEN';
-    const d = ab ? 0 : z.druck;
-    const tau = ab ? 0.015 : 0.05;
-    const f = K.PFEIF_HZ_MIN * Math.pow(K.PFEIF_HZ_MAX / K.PFEIF_HZ_MIN, Math.pow(d, 0.75));
-    osz1.frequency.setTargetAtTime(f, t, 0.05);
-    osz2.frequency.setTargetAtTime(f * 1.006, t, 0.05);
-    sinus.frequency.setTargetAtTime(f, t, 0.05);
-    pfeifFilter.frequency.setTargetAtTime(f, t, 0.05);
-    pfeifGain.gain.setTargetAtTime(Math.pow(d, 1.2) * K.PFEIF_LAUT, t, tau);
-    rauschFilter.frequency.setTargetAtTime(700 + d * 4300, t, 0.05);
-    rauschGain.gain.setTargetAtTime(d * K.RAUSCH_LAUT, t, tau);
-  }
-
-  // Plant das Abblasen ein und gibt seine Dauer in Sekunden zurück
-  function blowoff(staerke) {
-    const dauer = lerp(K.BLOWOFF_MIN_S, K.BLOWOFF_MAX_S, staerke);
-    const laut = K.BLOWOFF_LAUT * (0.35 + 0.65 * staerke);
-    const zischDauer = 0.07 + 0.10 * staerke;
-    const pulse = [];
-    let tt = zischDauer * 0.8;
-    if (staerke >= 0.12) {
-      while (tt < dauer) {
-        const p = tt / dauer;
-        const periode = 1 / lerp(K.FLATTER_START_HZ, K.FLATTER_ENDE_HZ, p);
-        pulse.push({ t: tt, periode, p, a: laut * (0.15 + 0.85 * Math.pow(1 - p, 1.3)) });
-        tt += periode;
-      }
-    }
-    z.letztePulse = pulse.length;
-    z.letzteStaerke = staerke;
-
-    if (ctx) {
-      const t0 = ctx.currentTime + 0.02;
-      zischGain.gain.cancelScheduledValues(t0);
-      zischGain.gain.setValueAtTime(0.0001, t0);
-      zischGain.gain.linearRampToValueAtTime(laut * 0.7, t0 + 0.012);
-      zischGain.gain.exponentialRampToValueAtTime(0.0001, t0 + zischDauer + 0.06);
-      flatterGain.gain.cancelScheduledValues(t0);
-      flatterGain.gain.setValueAtTime(0.0001, t0);
-      flatterFilter.frequency.cancelScheduledValues(t0);
-      for (const q of pulse) {
-        const t = t0 + q.t;
-        flatterFilter.frequency.setValueAtTime(lerp(K.FLATTER_TON_HZ, K.FLATTER_TON_ENDE_HZ, q.p), t);
-        flatterGain.gain.setValueAtTime(0.0001, t);
-        flatterGain.gain.linearRampToValueAtTime(q.a, t + 0.005);
-        flatterGain.gain.exponentialRampToValueAtTime(0.0001, t + q.periode * 0.78);
-      }
-    }
-    if (navigator.vibrate && pulse.length) {
-      const muster = [];
-      let zuletzt = 0;
-      for (const q of pulse) {
-        const an = Math.min(30, q.periode * 400);
-        if (muster.length) muster.push(Math.max(1, Math.round(q.t * 1000 - zuletzt)));
-        muster.push(Math.round(an));
-        zuletzt = q.t * 1000 + an;
-      }
-      try { navigator.vibrate(muster); } catch (e) {}
-    }
-    return dauer;
+  // Nur zum Prüfen: rechnet ein Abblasen ohne Lautsprecher aus
+  async function offline(staerke = 1, sekunden = 2.6) {
+    const OC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const o = new OC(1, Math.ceil(44100 * sekunden), 44100);
+    const kl = baueKlang(o);
+    kl.nachfuehren(staerke);
+    const plan = kl.blowoff(staerke, 0.5);
+    const puffer = await o.startRendering();
+    return { daten: puffer.getChannelData(0), rate: 44100, start: 0.5, dauer: plan.dauer, pulse: plan.pulse };
   }
 
   // ---------------------------------------------------------------------------
@@ -423,20 +612,41 @@
   function absetzen(jetzt) {
     const staerke = z.druck;
     z.zustand = 'ABSETZEN';
+    z.scharf = false;
+    z.testBis = 0;
+    z.letztePulse = 0;
+    z.letzteStaerke = staerke;
     if (staerke < K.MIN_DRUCK) { z.absetzenBis = jetzt + 120; return; }
-    z.absetzenBis = jetzt + blowoff(staerke) * 1000;
+
+    let dauer = lerp(K.BLOWOFF_MIN_S, P.laenge, staerke), pulse = [];
+    if (klang) ({ dauer, pulse } = klang.blowoff(staerke, ctx.currentTime + 0.015));
+    z.letztePulse = pulse.length;
+    z.absetzenBis = jetzt + dauer * 1000 + 60;
     z.blitz = 0.35 + 0.65 * staerke;
     if (staerke > z.best) {
       z.best = staerke;
       try { localStorage.setItem('turbo.v1', JSON.stringify({ best: z.best })); } catch (e) {}
     }
+    if (navigator.vibrate) {
+      const muster = [];
+      let zuletzt = 0;
+      if (!pulse.length) muster.push(Math.round(Math.min(400, dauer * 500)));
+      for (const q of pulse) {
+        const an = Math.min(30, q.periode * 400);
+        if (muster.length) muster.push(Math.max(1, Math.round(q.t * 1000 - zuletzt)));
+        muster.push(Math.round(an));
+        zuletzt = q.t * 1000 + an;
+      }
+      try { navigator.vibrate(muster); } catch (e) {}
+    }
   }
 
   function logik(jetzt, dt) {
-    const w = z.winkel;
+    const w = z.testBis > jetzt ? P.einsatz + K.VOLL_ABSTAND : z.winkel;
     if (z.zustand === 'RUHE') {
       z.druck = Math.max(0, z.druck - dt / 0.4);
-      if (w > K.WINKEL_AN) {
+      if (!z.scharf && w < P.einsatz - K.SCHARF_ABSTAND) z.scharf = true;
+      if (z.scharf && w > P.einsatz) {
         if (!z.anSeit) z.anSeit = jetzt;
         if (jetzt - z.anSeit >= K.AN_VERZOEGERUNG_MS) { z.zustand = 'TRINKEN'; z.spitzenWinkel = w; }
       } else {
@@ -444,15 +654,18 @@
       }
     } else if (z.zustand === 'TRINKEN') {
       z.spitzenWinkel = Math.max(z.spitzenWinkel, w);
-      const kipp = klemme((w - K.WINKEL_AN) / (K.WINKEL_VOLL - K.WINKEL_AN));
+      const kipp = klemme((w - P.einsatz) / K.VOLL_ABSTAND);
       z.druck = Math.min(1, z.druck + (dt / K.HOCHLAUF_S) * (0.35 + 0.65 * kipp));
-      const schwelle = Math.min(K.WINKEL_AN - 3, Math.max(K.WINKEL_AUS, z.spitzenWinkel * K.ABSETZ_ANTEIL));
-      if (w < schwelle) absetzen(jetzt);
+      // früh auslösen: sobald das Handy merklich zurückkommt
+      if (w < z.spitzenWinkel - P.abfall || w < P.einsatz - K.AUS_ABSTAND) absetzen(jetzt);
     } else {
       z.druck *= Math.exp(-dt / 0.12);
-      if (jetzt >= z.absetzenBis) { z.zustand = 'RUHE'; z.anSeit = 0; z.druck = 0; }
+      if (jetzt >= z.absetzenBis) {
+        z.zustand = 'RUHE'; z.anSeit = 0; z.druck = 0;
+        if (klang) klang.frei();
+      }
     }
-    tonNachfuehren();
+    if (klang && z.zustand !== 'ABSETZEN') klang.nachfuehren(z.druck);
   }
 
   // ---------------------------------------------------------------------------
@@ -464,7 +677,7 @@
   };
   const druckText = document.createTextNode('0,00');
   el.druck.replaceChild(druckText, el.druck.firstChild);
-  let alt = {};
+  const alt = {};
 
   function setze(schluessel, wert, fn) { if (alt[schluessel] !== wert) { alt[schluessel] = wert; fn(wert); } }
 
@@ -494,9 +707,9 @@
     let status;
     if (!z.laeuft) status = 'Bereit';
     else if (!z.sim && !ref) status = 'Ruhelage wird gemessen …';
-    else if (z.zustand === 'ABSETZEN') status = z.letztePulse ? 'PSCH-TU-TU-TU!' : 'Pscht.';
+    else if (z.zustand === 'ABSETZEN') status = z.letzteStaerke < K.MIN_DRUCK ? '…' : (z.letztePulse ? 'PSCH-TU-TU-TU!' : 'PSCHHH!');
     else if (z.zustand === 'TRINKEN') status = z.druck >= 0.995 ? 'Volllast!' : 'Turbo lädt …';
-    else status = 'Kippen zum Laden';
+    else status = `Über ${Math.round(P.einsatz)}° kippen`;
     setze('status', status, (v) => { el.status.textContent = v; });
   }
 
@@ -508,6 +721,71 @@
     if (z.laeuft) logik(jetzt, dt);
     zeichne(dt);
   }, 16);
+
+  // ---------------------------------------------------------------------------
+  // Klang-Labor: am Handy nachregeln, Werte kopieren
+  // ---------------------------------------------------------------------------
+  const labor = { eingaben: {}, anzeigen: {} };
+
+  function zeigeWerte() {
+    for (const [k, , , , schritt, einheit] of REGLER) {
+      labor.eingaben[k].value = P[k];
+      labor.anzeigen[k].textContent = (schritt < 1 ? P[k].toFixed(2) : String(Math.round(P[k]))).replace('.', ',') + einheit;
+    }
+    $('werte').value = JSON.stringify(P);
+  }
+  function speichereWerte() {
+    try { localStorage.setItem('turbo.klang.v1', JSON.stringify(P)); } catch (e) {}
+    if (klang) klang.anwenden();
+    zeigeWerte();
+  }
+  (function baueLabor() {
+    const feld = $('regler');
+    for (const [k, name, min, max, schritt] of REGLER) {
+      const l = document.createElement('label');
+      const s = document.createElement('span'); s.textContent = name;
+      const b = document.createElement('b');
+      const i = document.createElement('input');
+      i.type = 'range'; i.min = min; i.max = max; i.step = schritt;
+      i.addEventListener('input', () => { P[k] = Number(i.value); speichereWerte(); });
+      l.append(s, b, i); feld.appendChild(l);
+      labor.eingaben[k] = i; labor.anzeigen[k] = b;
+    }
+    const reihe = $('vorgaben');
+    for (const name of Object.keys(VORGABEN)) {
+      const knopf = document.createElement('button');
+      knopf.type = 'button'; knopf.textContent = name;
+      knopf.addEventListener('click', () => {
+        const { einsatz, abfall } = P; // Auslösung bleibt, nur der Klang wechselt
+        Object.assign(P, STANDARD, VORGABEN[name], { einsatz, abfall });
+        speichereWerte();
+      });
+      reihe.appendChild(knopf);
+    }
+    zeigeWerte();
+  })();
+
+  function laborAuf(offen) { $('labor').classList.toggle('offen', offen); }
+  $('laborZu').addEventListener('click', () => laborAuf(false));
+  $('zurueck').addEventListener('click', () => { Object.assign(P, STANDARD); speichereWerte(); });
+  $('kopieren').addEventListener('click', async () => {
+    const feld = $('werte'), knopf = $('kopieren');
+    try { await navigator.clipboard.writeText(feld.value); knopf.textContent = 'Kopiert'; }
+    catch (e) { feld.focus(); feld.select(); knopf.textContent = 'Markiert'; }
+    setTimeout(() => { knopf.textContent = 'Werte kopieren'; }, 1500);
+  });
+  $('testBlowoff').addEventListener('click', () => {
+    if (!z.laeuft || z.zustand === 'ABSETZEN') return;
+    z.druck = 1; z.zustand = 'TRINKEN'; z.spitzenWinkel = 999; z.testBis = 0; // nächster Takt löst aus
+  });
+  $('testHoch').addEventListener('click', () => {
+    if (!z.laeuft || z.zustand === 'ABSETZEN') return;
+    z.scharf = true; z.testBis = performance.now() + 4000; // 4 s laden, danach bläst er ab
+  });
+  let druckTimer = 0;
+  const marke = $('marke');
+  marke.addEventListener('pointerdown', () => { druckTimer = setTimeout(() => laborAuf(!$('labor').classList.contains('offen')), 700); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((n) => marke.addEventListener(n, () => clearTimeout(druckTimer)));
 
   // ---------------------------------------------------------------------------
   // Start (braucht einen Tipp: Sensorfreigabe und Ton gibt es nur nach Nutzergeste)
@@ -539,6 +817,7 @@
     wachHalten();
     $('start').style.display = 'none';
     z.laeuft = true;
+    if (PARAMETER.has('labor')) laborAuf(true);
 
     if (!sensor) {
       simAn(SIM_ERZWUNGEN ? 'Kippwinkel (Test)' : 'Kein Bewegungssensor – Regler zum Testen');
@@ -555,8 +834,8 @@
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-      z.zustand = 'RUHE'; z.druck = 0; z.anSeit = 0;
-      tonNachfuehren();
+      z.zustand = 'RUHE'; z.druck = 0; z.anSeit = 0; z.testBis = 0;
+      if (klang) { klang.frei(); klang.nachfuehren(0); }
     } else if (z.laeuft) {
       if (ctx) ctx.resume();
       wachHalten();
@@ -568,7 +847,7 @@
   }
 
   // Für Tests am PC
-  window.turbo = { z, K, pfeifHz: () => (osz1 ? osz1.frequency.value : 0), ton: () => (ctx ? ctx.state : 'aus') };
+  window.turbo = { z, K, P, offline, pfeifHz: () => (klang ? klang.pfeifHz() : 0), ton: () => (ctx ? ctx.state : 'aus') };
 })();
 </script>
 </body>

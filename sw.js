@@ -1,5 +1,5 @@
 // Turbo – Offline-Cache. Netz zuerst (Updates kommen sofort an), sonst aus dem Cache.
-const CACHE = 'turbo-v1';
+const CACHE = 'turbo-v2';
 const DATEIEN = ['./', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
