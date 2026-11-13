@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Turbo</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Turbo">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0c0f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+  :root {
+    --bg: #0a0c0f;
+    --flaeche: #151a20;
+    --linie: #29303a;
+    --text: #e9edf2;
+    --leise: #8b95a3;
+    --akzent: #38c6ff;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+  }
+  #app {
+    position: relative;
+    height: 100vh; height: 100dvh;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
+    gap: 8px;
+  }
+  header { text-align: center; }
+  .marke { font-size: 13px; font-weight: 800; letter-spacing: 0.42em; margin-right: -0.42em; color: var(--leise); }
+  #status {
+    margin-top: 10px; min-height: 1.3em;
+    font-size: 19px; font-weight: 700; letter-spacing: 0.02em; color: var(--akzent);
+  }
+  #lader { width: min(90vw, 54vh); height: auto; flex: 0 1 auto; display: block; }
+  .anzeige { text-align: center; }
+  #druck {
+    font-size: clamp(54px, 17vw, 84px); font-weight: 800; line-height: 1;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+  }
+  #druck small { font-size: 0.3em; font-weight: 700; letter-spacing: 0.08em; color: var(--leise); margin-left: 0.25em; }
+  .neben { margin-top: 8px; font-size: 14px; color: var(--leise); font-variant-numeric: tabular-nums; }
+  .neben b { color: var(--text); font-weight: 700; }
+  footer { width: 100%; max-width: 420px; display: grid; gap: 12px; justify-items: center; }
+  button {
+    font: inherit; color: var(--text); cursor: pointer;
+    border: 1px solid var(--linie); background: var(--flaeche);
+    min-height: 48px; padding: 0 22px; border-radius: 14px; font-weight: 700; font-size: 15px;
+  }
+  button:active { background: #1d242c; }
+  #sim { display: none; width: 100%; gap: 6px; font-size: 13px; color: var(--leise); text-align: center; }
+  #sim input { width: 100%; accent-color: var(--akzent); height: 36px; }
+  #blitz {
+    position: fixed; inset: 0; pointer-events: none; opacity: 0;
+    background: radial-gradient(circle at 50% 42%, rgba(255, 190, 120, 0.9), rgba(255, 110, 40, 0.35) 45%, transparent 75%);
+  }
+  #start {
+    position: fixed; inset: 0; z-index: 5;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+    padding: 32px; text-align: center;
+    background: radial-gradient(circle at 50% 35%, #1a222b, var(--bg) 70%);
+  }
+  #start h1 { margin: 0; font-size: 44px; font-weight: 900; letter-spacing: 0.3em; margin-right: -0.3em; }
+  #start p { margin: 0; max-width: 30ch; font-size: 17px; line-height: 1.45; color: var(--leise); }
+  #start p b { color: var(--text); }
+  #los {
+    min-height: 68px; padding: 0 54px; border-radius: 34px; border: 0;
+    background: #ff6a1f; color: #160a02; font-size: 22px; font-weight: 900; letter-spacing: 0.06em;
+    box-shadow: 0 0 44px rgba(255, 106, 31, 0.35);
+  }
+  #los:active { background: #ff8242; }
+  #los:disabled { opacity: 0.5; }
+  #hinweis { color: #ffb38a !important; min-height: 1.4em; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="marke">TURBO</div>
+    <div id="status">Bereit</div>
+  </header>
+
+  <svg id="lader" viewBox="-108 -108 216 216" role="img" aria-label="Turbolader">
+    <defs>
+      <radialGradient id="gGehaeuse" cx="35%" cy="30%" r="80%">
+        <stop offset="0" stop-color="#3a424d"/><stop offset="1" stop-color="#12151a"/>
+      </radialGradient>
+      <linearGradient id="gSchaufel" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#eef2f6"/><stop offset="0.55" stop-color="#8b96a4"/><stop offset="1" stop-color="#3d4651"/>
+      </linearGradient>
+      <radialGradient id="gNabe" cx="38%" cy="32%" r="75%">
+        <stop offset="0" stop-color="#f4f6f8"/><stop offset="1" stop-color="#586270"/>
+      </radialGradient>
+      <radialGradient id="gWisch" cx="50%" cy="50%" r="50%">
+        <stop offset="0.2" stop-color="#aeb8c4" stop-opacity="0.15"/>
+        <stop offset="0.65" stop-color="#cfd7e0" stop-opacity="0.75"/>
+        <stop offset="1" stop-color="#7f8a98" stop-opacity="0.9"/>
+      </radialGradient>
+    </defs>
+    <g id="skala"></g>
+    <circle id="bogenSpur" r="96" fill="none" stroke="#1b2027" stroke-width="6" stroke-linecap="round" transform="rotate(135)"/>
+    <circle id="bogen" r="96" fill="none" stroke="var(--akzent)" stroke-width="6" stroke-linecap="round" transform="rotate(135)"/>
+    <circle r="82" fill="url(#gGehaeuse)" stroke="#444c58" stroke-width="1.5"/>
+    <circle r="63" fill="#050607" stroke="#0c0e11" stroke-width="5"/>
+    <circle id="glut" r="61" fill="var(--akzent)" opacity="0"/>
+    <g id="rad">
+      <g id="schaufeln"></g>
+      <circle id="wisch" r="58" fill="url(#gWisch)" opacity="0"/>
+      <circle r="14" fill="url(#gNabe)" stroke="#2c333c" stroke-width="1"/>
+      <path d="M0 -7 L6.06 -3.5 L6.06 3.5 L0 7 L-6.06 3.5 L-6.06 -3.5 Z" fill="#aab3bf" stroke="#3b434e" stroke-width="1"/>
+      <circle cx="0" cy="-10.2" r="1.3" fill="#20262d"/>
+    </g>
+  </svg>
+
+  <div class="anzeige">
+    <div id="druck">0,00<small>BAR</small></div>
+    <div class="neben">Kippwinkel <b id="winkel">0°</b> · Bestwert <b id="best">0,00 bar</b></div>
+  </div>
+
+  <footer>
+    <label id="sim"><span id="simText">Kippwinkel (Test)</span>
+      <input id="simRegler" type="range" min="0" max="90" step="1" value="0">
+    </label>
+    <button id="ausrichten" type="button">Neu ausrichten</button>
+  </footer>
+</div>
+
+<div id="blitz"></div>
+
+<div id="start">
+  <h1>TURBO</h1>
+  <p>Handy <b>wie ein Glas</b> halten und Start tippen. Zum Trinken kippen lädt den Turbo – beim Absetzen bläst er ab.</p>
+  <button id="los" type="button">START</button>
+  <p id="hinweis"></p>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------------------------------------------------------------------------
+  // Stellschrauben – hier lässt sich Gefühl und Klang anpassen
+  // ---------------------------------------------------------------------------
+  const K = {
+    WINKEL_AN: 25,          // ° ab hier gilt das Handy als „am Trinken“
+    WINKEL_AUS: 12,         // ° darunter ist immer abgesetzt
+    ABSETZ_ANTEIL: 0.45,    // abgesetzt, sobald der Winkel unter diesen Anteil des größten Kippwinkels fällt
+    AN_VERZOEGERUNG_MS: 150,
+    WINKEL_VOLL: 70,        // ° ab hier lädt der Turbo mit vollem Tempo
+    HOCHLAUF_S: 6,          // Sekunden bis Volllast bei starkem Kippen
+    MIN_DRUCK: 0.05,        // darunter gibt es beim Absetzen keinen Ton
+    MAX_BAR: 2.0,           // Anzeige bei Volllast
+    GLAETTUNG_S: 0.12,      // Tiefpass für den Sensor
+    KALIBRIER_MS: 400,
+
+    PFEIF_HZ_MIN: 320,      // Tonhöhe des Pfeifens im Stand …
+    PFEIF_HZ_MAX: 4600,     // … und bei Volllast
+    PFEIF_LAUT: 0.20,
+    RAUSCH_LAUT: 0.30,
+
+    BLOWOFF_MIN_S: 0.3,     // Länge des Abblasens bei wenig …
+    BLOWOFF_MAX_S: 1.5,     // … und bei vollem Ladedruck
+    FLATTER_START_HZ: 16,   // „tu-tu-tu“ pro Sekunde am Anfang …
+    FLATTER_ENDE_HZ: 7,     // … und am Ende
+    FLATTER_TON_HZ: 1150,   // Klangfarbe des „tu“ am Anfang …
+    FLATTER_TON_ENDE_HZ: 720, // … und am Ende
+    BLOWOFF_LAUT: 0.95,
+
+    RAD_MAX: 1150,          // °/s Drehung der Anzeige bei Volllast
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const klemme = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const bar = (druck) => (druck * K.MAX_BAR).toFixed(2).replace('.', ',');
+  const SIM_ERZWUNGEN = new URLSearchParams(location.search).has('sim');
+  const NS = 'http://www.w3.org/2000/svg';
+
+  const z = {
+    laeuft: false, sim: false,
+    zustand: 'RUHE',        // RUHE | TRINKEN | ABSETZEN
+    winkel: 0, spitzenWinkel: 0, anSeit: 0, absetzenBis: 0,
+    druck: 0,               // Ladedruck 0…1
+    rad: 0, radTempo: 0, blitz: 0,
+    best: 0, letztePulse: 0, letzteStaerke: 0,
+  };
+  try { z.best = Number(JSON.parse(localStorage.getItem('turbo.v1') || '{}').best) || 0; } catch (e) {}
+
+  // ---------------------------------------------------------------------------
+  // Zeichnung aufbauen
+  // ---------------------------------------------------------------------------
+  const UMFANG = 2 * Math.PI * 96;
+  const BOGEN = UMFANG * 0.75;
+  $('bogenSpur').setAttribute('stroke-dasharray', `${BOGEN} ${UMFANG}`);
+  (function baueRad() {
+    const g = $('schaufeln');
+    for (let i = 0; i < 10; i++) {
+      const p = document.createElementNS(NS, 'path');
+      p.setAttribute('d', 'M-4 -12 Q5 -31 23 -52 L33 -46 Q14 -29 6 -10 Z');
+      p.setAttribute('fill', 'url(#gSchaufel)');
+      p.setAttribute('stroke', '#20262d');
+      p.setAttribute('stroke-width', '0.6');
+      p.setAttribute('transform', `rotate(${i * 36})`);
+      g.appendChild(p);
+    }
+    const skala = $('skala');
+    for (let i = 0; i <= 8; i++) {
+      const w = (135 + (270 * i) / 8) * Math.PI / 180;
+      const lang = i % 2 === 0;
+      const l = document.createElementNS(NS, 'line');
+      const r1 = 101.5, r2 = lang ? 107 : 104.5;
+      l.setAttribute('x1', Math.cos(w) * r1); l.setAttribute('y1', Math.sin(w) * r1);
+      l.setAttribute('x2', Math.cos(w) * r2); l.setAttribute('y2', Math.sin(w) * r2);
+      l.setAttribute('stroke', lang ? '#6b7583' : '#3a424d');
+      l.setAttribute('stroke-width', lang ? 1.6 : 1);
+      l.setAttribute('stroke-linecap', 'round');
+      skala.appendChild(l);
+    }
+  })();
+
+  // ---------------------------------------------------------------------------
+  // Bewegungssensor: Kippwinkel gegenüber der Ruhelage beim Start
+  // ---------------------------------------------------------------------------
+  let g = null, ref = null, letzteProbe = 0, kalibStart = 0, proben = 0;
+
+  function aufBewegung(e) {
+    const a = e.accelerationIncludingGravity;
+    if (!a || a.x == null || a.y == null || a.z == null) return;
+    const jetzt = performance.now();
+    proben++;
+    if (!g) {
+      g = { x: a.x, y: a.y, z: a.z };
+    } else {
+      const dt = Math.min(0.2, (jetzt - letzteProbe) / 1000);
+      const k = 1 - Math.exp(-dt / K.GLAETTUNG_S);
+      g.x += (a.x - g.x) * k; g.y += (a.y - g.y) * k; g.z += (a.z - g.z) * k;
+    }
+    letzteProbe = jetzt;
+    if (!ref) {
+      if (!kalibStart) kalibStart = jetzt;
+      if (jetzt - kalibStart >= K.KALIBRIER_MS) {
+        const n = Math.hypot(g.x, g.y, g.z);
+        if (n > 1) ref = { x: g.x / n, y: g.y / n, z: g.z / n };
+      }
+      return;
+    }
+    if (z.sim) return;
+    const n = Math.hypot(g.x, g.y, g.z) || 1;
+    const punkt = klemme((ref.x * g.x + ref.y * g.y + ref.z * g.z) / n, -1, 1);
+    z.winkel = Math.acos(punkt) * 180 / Math.PI;
+  }
+
+  function neuAusrichten() {
+    ref = null; kalibStart = 0;
+    z.zustand = 'RUHE'; z.druck = 0; z.anSeit = 0; z.winkel = 0;
+    if (z.sim) $('simRegler').value = 0;
+  }
+
+  function simAn(text) {
+    z.sim = true; z.winkel = 0;
+    $('sim').style.display = 'grid';
+    if (text) $('simText').textContent = text;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Ton: alles synthetisch (Web Audio), keine Audiodateien
+  // ---------------------------------------------------------------------------
+  let ctx = null, osz1, osz2, sinus, pfeifFilter, pfeifGain, rauschFilter, rauschGain;
+  let zischGain, flatterGain, flatterFilter;
+
+  function stilleUrl() { // 1 s Stille als WAV – hält auf älteren iPhones den Ton trotz Stummschalter an
+    const rate = 8000, n = rate, puffer = new ArrayBuffer(44 + n), v = new DataView(puffer);
+    const txt = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    txt(0, 'RIFF'); v.setUint32(4, 36 + n, true); txt(8, 'WAVEfmt '); v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true); v.setUint32(28, rate, true);
+    v.setUint16(32, 1, true); v.setUint16(34, 8, true); txt(36, 'data'); v.setUint32(40, n, true);
+    for (let i = 0; i < n; i++) v.setUint8(44 + i, 128);
+    return URL.createObjectURL(new Blob([puffer], { type: 'audio/wav' }));
+  }
+
+  function tonStart() {
+    if (ctx) { ctx.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    const istIOS = typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function';
+    try {
+      if (navigator.audioSession) navigator.audioSession.type = 'playback';
+      else if (istIOS) {
+        const a = new Audio(stilleUrl());
+        a.loop = true; a.setAttribute('playsinline', ''); a.play().catch(() => {});
+      }
+    } catch (e) {}
+
+    ctx = new AC();
+    const haupt = ctx.createGain(); haupt.gain.value = 0.9;
+    const komp = ctx.createDynamicsCompressor();
+    haupt.connect(komp); komp.connect(ctx.destination);
+
+    // Rauschquelle (2 s, Schleife) für Luftstrom und Abblasen
+    const laenge = Math.floor(ctx.sampleRate * 2);
+    const puffer = ctx.createBuffer(1, laenge, ctx.sampleRate);
+    const daten = puffer.getChannelData(0);
+    for (let i = 0; i < laenge; i++) daten[i] = Math.random() * 2 - 1;
+    const rauschen = ctx.createBufferSource();
+    rauschen.buffer = puffer; rauschen.loop = true; rauschen.start();
+
+    // Pfeifen: zwei verstimmte Sägezähne durch einen mitlaufenden Bandpass + reiner Sinus
+    pfeifFilter = ctx.createBiquadFilter(); pfeifFilter.type = 'bandpass'; pfeifFilter.Q.value = 5;
+    pfeifGain = ctx.createGain(); pfeifGain.gain.value = 0;
+    osz1 = ctx.createOscillator(); osz1.type = 'sawtooth';
+    osz2 = ctx.createOscillator(); osz2.type = 'sawtooth';
+    sinus = ctx.createOscillator(); sinus.type = 'sine';
+    const sinusGain = ctx.createGain(); sinusGain.gain.value = 0.6;
+    osz1.connect(pfeifFilter); osz2.connect(pfeifFilter);
+    sinus.connect(sinusGain); sinusGain.connect(pfeifGain);
+    pfeifFilter.connect(pfeifGain); pfeifGain.connect(haupt);
+    [osz1, osz2, sinus].forEach((o) => { o.frequency.value = K.PFEIF_HZ_MIN; o.start(); });
+
+    // Luftstrom
+    rauschFilter = ctx.createBiquadFilter(); rauschFilter.type = 'bandpass'; rauschFilter.Q.value = 0.8;
+    rauschGain = ctx.createGain(); rauschGain.gain.value = 0;
+    rauschen.connect(rauschFilter); rauschFilter.connect(rauschGain); rauschGain.connect(haupt);
+
+    // Abblasen, Teil 1: das „sch“
+    const zischFilter = ctx.createBiquadFilter(); zischFilter.type = 'highpass'; zischFilter.frequency.value = 2400;
+    zischGain = ctx.createGain(); zischGain.gain.value = 0;
+    rauschen.connect(zischFilter); zischFilter.connect(zischGain); zischGain.connect(haupt);
+
+    // Abblasen, Teil 2: das „tu-tu-tu“ – Rauschen durch zwei Bandpässe, in Impulse zerhackt
+    flatterFilter = ctx.createBiquadFilter(); flatterFilter.type = 'bandpass'; flatterFilter.Q.value = 2.6;
+    flatterFilter.frequency.value = K.FLATTER_TON_HZ;
+    const hell = ctx.createBiquadFilter(); hell.type = 'bandpass'; hell.Q.value = 1.4; hell.frequency.value = 3000;
+    const hellGain = ctx.createGain(); hellGain.gain.value = 0.45;
+    const tuGain = ctx.createGain(); tuGain.gain.value = 2.2;
+    flatterGain = ctx.createGain(); flatterGain.gain.value = 0;
+    rauschen.connect(flatterFilter); flatterFilter.connect(tuGain); tuGain.connect(flatterGain);
+    rauschen.connect(hell); hell.connect(hellGain); hellGain.connect(flatterGain);
+    flatterGain.connect(haupt);
+
+    ctx.resume();
+  }
+
+  function tonNachfuehren() {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const ab = z.zustand === 'ABSETZEN';
+    const d = ab ? 0 : z.druck;
+    const tau = ab ? 0.015 : 0.05;
+    const f = K.PFEIF_HZ_MIN * Math.pow(K.PFEIF_HZ_MAX / K.PFEIF_HZ_MIN, Math.pow(d, 0.75));
+    osz1.frequency.setTargetAtTime(f, t, 0.05);
+    osz2.frequency.setTargetAtTime(f * 1.006, t, 0.05);
+    sinus.frequency.setTargetAtTime(f, t, 0.05);
+    pfeifFilter.frequency.setTargetAtTime(f, t, 0.05);
+    pfeifGain.gain.setTargetAtTime(Math.pow(d, 1.2) * K.PFEIF_LAUT, t, tau);
+    rauschFilter.frequency.setTargetAtTime(700 + d * 4300, t, 0.05);
+    rauschGain.gain.setTargetAtTime(d * K.RAUSCH_LAUT, t, tau);
+  }
+
+  // Plant das Abblasen ein und gibt seine Dauer in Sekunden zurück
+  function blowoff(staerke) {
+    const dauer = lerp(K.BLOWOFF_MIN_S, K.BLOWOFF_MAX_S, staerke);
+    const laut = K.BLOWOFF_LAUT * (0.35 + 0.65 * staerke);
+    const zischDauer = 0.07 + 0.10 * staerke;
+    const pulse = [];
+    let tt = zischDauer * 0.8;
+    if (staerke >= 0.12) {
+      while (tt < dauer) {
+        const p = tt / dauer;
+        const periode = 1 / lerp(K.FLATTER_START_HZ, K.FLATTER_ENDE_HZ, p);
+        pulse.push({ t: tt, periode, p, a: laut * (0.15 + 0.85 * Math.pow(1 - p, 1.3)) });
+        tt += periode;
+      }
+    }
+    z.letztePulse = pulse.length;
+    z.letzteStaerke = staerke;
+
+    if (ctx) {
+      const t0 = ctx.currentTime + 0.02;
+      zischGain.gain.cancelScheduledValues(t0);
+      zischGain.gain.setValueAtTime(0.0001, t0);
+      zischGain.gain.linearRampToValueAtTime(laut * 0.7, t0 + 0.012);
+      zischGain.gain.exponentialRampToValueAtTime(0.0001, t0 + zischDauer + 0.06);
+      flatterGain.gain.cancelScheduledValues(t0);
+      flatterGain.gain.setValueAtTime(0.0001, t0);
+      flatterFilter.frequency.cancelScheduledValues(t0);
+      for (const q of pulse) {
+        const t = t0 + q.t;
+        flatterFilter.frequency.setValueAtTime(lerp(K.FLATTER_TON_HZ, K.FLATTER_TON_ENDE_HZ, q.p), t);
+        flatterGain.gain.setValueAtTime(0.0001, t);
+        flatterGain.gain.linearRampToValueAtTime(q.a, t + 0.005);
+        flatterGain.gain.exponentialRampToValueAtTime(0.0001, t + q.periode * 0.78);
+      }
+    }
+    if (navigator.vibrate && pulse.length) {
+      const muster = [];
+      let zuletzt = 0;
+      for (const q of pulse) {
+        const an = Math.min(30, q.periode * 400);
+        if (muster.length) muster.push(Math.max(1, Math.round(q.t * 1000 - zuletzt)));
+        muster.push(Math.round(an));
+        zuletzt = q.t * 1000 + an;
+      }
+      try { navigator.vibrate(muster); } catch (e) {}
+    }
+    return dauer;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Ablauf: RUHE -> TRINKEN -> ABSETZEN -> RUHE
+  // ---------------------------------------------------------------------------
+  function absetzen(jetzt) {
+    const staerke = z.druck;
+    z.zustand = 'ABSETZEN';
+    if (staerke < K.MIN_DRUCK) { z.absetzenBis = jetzt + 120; return; }
+    z.absetzenBis = jetzt + blowoff(staerke) * 1000;
+    z.blitz = 0.35 + 0.65 * staerke;
+    if (staerke > z.best) {
+      z.best = staerke;
+      try { localStorage.setItem('turbo.v1', JSON.stringify({ best: z.best })); } catch (e) {}
+    }
+  }
+
+  function logik(jetzt, dt) {
+    const w = z.winkel;
+    if (z.zustand === 'RUHE') {
+      z.druck = Math.max(0, z.druck - dt / 0.4);
+      if (w > K.WINKEL_AN) {
+        if (!z.anSeit) z.anSeit = jetzt;
+        if (jetzt - z.anSeit >= K.AN_VERZOEGERUNG_MS) { z.zustand = 'TRINKEN'; z.spitzenWinkel = w; }
+      } else {
+        z.anSeit = 0;
+      }
+    } else if (z.zustand === 'TRINKEN') {
+      z.spitzenWinkel = Math.max(z.spitzenWinkel, w);
+      const kipp = klemme((w - K.WINKEL_AN) / (K.WINKEL_VOLL - K.WINKEL_AN));
+      z.druck = Math.min(1, z.druck + (dt / K.HOCHLAUF_S) * (0.35 + 0.65 * kipp));
+      const schwelle = Math.min(K.WINKEL_AN - 3, Math.max(K.WINKEL_AUS, z.spitzenWinkel * K.ABSETZ_ANTEIL));
+      if (w < schwelle) absetzen(jetzt);
+    } else {
+      z.druck *= Math.exp(-dt / 0.12);
+      if (jetzt >= z.absetzenBis) { z.zustand = 'RUHE'; z.anSeit = 0; z.druck = 0; }
+    }
+    tonNachfuehren();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Anzeige (per Timer statt CSS-Animation, damit sie überall gleich läuft)
+  // ---------------------------------------------------------------------------
+  const el = {
+    rad: $('rad'), schaufeln: $('schaufeln'), wisch: $('wisch'), bogen: $('bogen'), glut: $('glut'),
+    druck: $('druck'), status: $('status'), winkel: $('winkel'), best: $('best'), blitz: $('blitz'),
+  };
+  const druckText = document.createTextNode('0,00');
+  el.druck.replaceChild(druckText, el.druck.firstChild);
+  let alt = {};
+
+  function setze(schluessel, wert, fn) { if (alt[schluessel] !== wert) { alt[schluessel] = wert; fn(wert); } }
+
+  function zeichne(dt) {
+    const zielTempo = z.druck * K.RAD_MAX;
+    const tau = zielTempo > z.radTempo ? 0.15 : 0.9; // hochdrehen folgt schnell, auslaufen träge
+    z.radTempo += (zielTempo - z.radTempo) * (1 - Math.exp(-dt / tau));
+    z.rad = (z.rad + z.radTempo * dt) % 360;
+    z.blitz = Math.max(0, z.blitz - dt / 0.45);
+
+    const tempoAnteil = klemme(z.radTempo / K.RAD_MAX);
+    el.rad.setAttribute('transform', `rotate(${z.rad.toFixed(1)})`);
+    setze('wisch', klemme(tempoAnteil * 1.4).toFixed(2), (v) => { el.wisch.setAttribute('opacity', v); });
+    setze('schaufeln', (1 - 0.7 * tempoAnteil).toFixed(2), (v) => { el.schaufeln.setAttribute('opacity', v); });
+    setze('bogen', (z.druck * BOGEN).toFixed(1), (v) => { el.bogen.setAttribute('stroke-dasharray', `${v} ${UMFANG}`); });
+    setze('bogenSichtbar', z.druck > 0.004, (v) => { el.bogen.style.visibility = v ? 'visible' : 'hidden'; });
+    setze('glut', (z.druck * 0.16).toFixed(3), (v) => { el.glut.setAttribute('opacity', v); });
+    // Blau -> Violett -> Rot -> Orange (über 360° hinweg, damit es nie grün wird)
+    setze('akzent', Math.round(lerp(196, 378, Math.pow(z.druck, 0.85))) % 360, (h) => {
+      document.documentElement.style.setProperty('--akzent', `hsl(${h} 96% 60%)`);
+    });
+    setze('druck', bar(z.druck), (v) => { druckText.nodeValue = v; });
+    setze('winkel', Math.round(z.winkel) + '°', (v) => { el.winkel.textContent = v; });
+    setze('best', bar(z.best) + ' bar', (v) => { el.best.textContent = v; });
+    setze('blitz', z.blitz.toFixed(2), (v) => { el.blitz.style.opacity = v; });
+
+    let status;
+    if (!z.laeuft) status = 'Bereit';
+    else if (!z.sim && !ref) status = 'Ruhelage wird gemessen …';
+    else if (z.zustand === 'ABSETZEN') status = z.letztePulse ? 'PSCH-TU-TU-TU!' : 'Pscht.';
+    else if (z.zustand === 'TRINKEN') status = z.druck >= 0.995 ? 'Volllast!' : 'Turbo lädt …';
+    else status = 'Kippen zum Laden';
+    setze('status', status, (v) => { el.status.textContent = v; });
+  }
+
+  let letzterTick = performance.now();
+  setInterval(() => {
+    const jetzt = performance.now();
+    const dt = Math.min(0.1, (jetzt - letzterTick) / 1000);
+    letzterTick = jetzt;
+    if (z.laeuft) logik(jetzt, dt);
+    zeichne(dt);
+  }, 16);
+
+  // ---------------------------------------------------------------------------
+  // Start (braucht einen Tipp: Sensorfreigabe und Ton gibt es nur nach Nutzergeste)
+  // ---------------------------------------------------------------------------
+  let wachSperre = null;
+  async function wachHalten() {
+    try { if (navigator.wakeLock && !wachSperre) { wachSperre = await navigator.wakeLock.request('screen'); wachSperre.addEventListener('release', () => { wachSperre = null; }); } } catch (e) {}
+  }
+
+  async function start() {
+    const knopf = $('los');
+    knopf.disabled = true;
+    $('hinweis').textContent = '';
+    tonStart(); // sofort im Tipp, vor jedem await
+
+    let sensor = !SIM_ERZWUNGEN && typeof DeviceMotionEvent !== 'undefined';
+    if (sensor && typeof DeviceMotionEvent.requestPermission === 'function') {
+      try {
+        const antwort = await DeviceMotionEvent.requestPermission();
+        if (antwort !== 'granted') {
+          $('hinweis').textContent = 'Ohne Sensor-Freigabe geht es nicht. Seite neu laden und „Erlauben“ wählen.';
+          knopf.disabled = false;
+          return;
+        }
+      } catch (e) { sensor = false; }
+    }
+    if (sensor) window.addEventListener('devicemotion', aufBewegung);
+
+    wachHalten();
+    $('start').style.display = 'none';
+    z.laeuft = true;
+
+    if (!sensor) {
+      simAn(SIM_ERZWUNGEN ? 'Kippwinkel (Test)' : 'Kein Bewegungssensor – Regler zum Testen');
+    } else {
+      setTimeout(() => {
+        if (!proben) simAn(window.isSecureContext ? 'Kein Bewegungssensor gefunden – Regler zum Testen' : 'Sensoren brauchen HTTPS – Regler zum Testen');
+      }, 1500);
+    }
+  }
+
+  $('los').addEventListener('click', start);
+  $('ausrichten').addEventListener('click', neuAusrichten);
+  $('simRegler').addEventListener('input', (e) => { if (z.sim) z.winkel = Number(e.target.value); });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      z.zustand = 'RUHE'; z.druck = 0; z.anSeit = 0;
+      tonNachfuehren();
+    } else if (z.laeuft) {
+      if (ctx) ctx.resume();
+      wachHalten();
+    }
+  });
+
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  // Für Tests am PC
+  window.turbo = { z, K, pfeifHz: () => (osz1 ? osz1.frequency.value : 0), ton: () => (ctx ? ctx.state : 'aus') };
+})();
+</script>
+</body>
+</html>
